@@ -1,10 +1,10 @@
-#!/usr/bin/env ruby18
+#!/usr/bin/env ruby
 
-require File.join(ENV['TM_SUPPORT_PATH'], 'lib', 'ui.rb')
-require File.join(ENV['TM_PROJECT_DIRECTORY'], 'config', 'environment')
+tm_dialog = ENV["DIALOG"]
+Dir.chdir(ENV["TM_PROJECT_DIRECTORY"])
 
-routes = ActionController::Routing::Routes.named_routes.routes.keys.map do |route|
-  %w(_path _url).map { |extension| route.to_s + extension } if route != :rails_info_properties
+routes = %x(spring rake routes).gsub(/^ *([a-z0-9_]+)?.*$/, '\1').gsub(/^\s*$\n/, "").split("\n").map do |route|
+  %w(_path).map { |extension| "{ display = #{route.to_s + extension}; }" }
 end
 
-TextMate::UI.complete(routes.flatten.compact.sort, :extra_chars => "_")
+%x(#{tm_dialog} popup --returnChoice --suggestions '( #{routes.flatten.join(", ")} )')
