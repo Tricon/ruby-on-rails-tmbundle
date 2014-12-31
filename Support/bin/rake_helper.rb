@@ -77,7 +77,7 @@ HTML
 
 $stdout.flush
 
-output = `#{command}`
+output = `./bin/#{command}`
 lines = output.split("\n")
 # Remove the test output from rake output
 lines.pop if lines[-1] =~ /0 tests, 0 assertions, 0 failures, 0 errors/
