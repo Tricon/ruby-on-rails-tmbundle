@@ -1,20 +1,22 @@
-#!/usr/bin/env ruby18 -W0
+#!/usr/bin/env ruby18
 
 require "yaml"
 require "rails_bundle_tools"
-require "progress"
-require "current_word"
+require "active_support/inflector"
+require "#{ENV['TM_SUPPORT_PATH']}/lib/progress"
+require "#{ENV['TM_SUPPORT_PATH']}/lib/current_word"
 
 module TextMate
   class ListColumns
+    include ActiveSupport::Inflector
+
     CACHE_DIR      = File.join(TextMate.project_directory, "tmp", "textmate")
     CACHE_FILE     = File.join(CACHE_DIR, "cache.yml")
     RELOAD_MESSAGE = "Reload database schema..."
     RAILS_REGEX    = /^Rails (\d\.?){3}(\w+)?$/
-    
+
     def run!
       TextMate.exit_show_tool_tip("Place cursor on class name (or variation) to show its schema") if current_word.nil? || current_word.empty?
-      # TextMate.exit_show_tool_tip("You don't have Rails installed in this gemset.") unless rails_present?
 
       klass = Inflector.singularize(Inflector.underscore(current_word))
 
@@ -24,7 +26,7 @@ module TextMate
         display_menu(klass_without_undescore)
       else
         options = [
-          @error || "'#{Inflector.camelize(klass)}' is not an Active Record derived class or was not recognised as a class.", 
+          @error || "'#{Inflector.camelize(klass)}' is not an Active Record derived class or was not recognised as a class.",
           nil,
           cache.keys.map { |model_name| "Use #{Inflector.camelize(model_name)}..." }.sort,
           nil,
@@ -50,22 +52,22 @@ module TextMate
         end
       end
     end
-    
+
    private
     def clone_cache(klass, new_word)
       cached_model = cache[klass]
       cache[new_word] = cached_model
 
-      File.open(CACHE_FILE, 'w') { |out| YAML.dump(cache, out ) }
+      File.open(CACHE_FILE, 'w') { |out| out.write YAML.dump(cache) }
     end
-   
+
     def display_menu(klass)
       columns      = cache[klass][:columns]
       associations = cache[klass][:associations]
 
       options = associations.empty? ? [] : associations + [nil]
       options += columns + [nil, RELOAD_MESSAGE]
-      
+
       selected = TextMate::UI.menu(options)
       return if selected.nil?
 
@@ -75,47 +77,36 @@ module TextMate
         TextMate.exit_insert_text(options[selected])
       end
     end
-   
+
     def cache
       Dir.mkdir(CACHE_DIR) unless File.exists?(CACHE_DIR)
-      @cache ||= File.exist?(CACHE_FILE) ? YAML.load(File.read(CACHE_FILE)) : cache_attributes
+      cache_attributes if !File.exist?(CACHE_FILE)
+
+      @cache ||= YAML.load(File.read(CACHE_FILE))
     end
-    
+
     def cache_attributes
-      _cache = {}
       File.delete(CACHE_FILE) if File.exists?(CACHE_FILE)
 
-      TextMate.call_with_progress(:title => "Contacting database", :message => "Fetching database schema...") do
+      TextMate.call_with_progress(title: "Contacting database", message: "Fetching database schema...") do
         begin
-          require "#{TextMate.project_directory}/config/environment"
-
-          Dir.glob(File.join(Rails.root, "app/models/**/*.rb")) do |file|
-            klass = File.basename(file, '.*').camelize.constantize rescue nil
-
-            if klass and klass.class.is_a?(Class) and klass.ancestors.include?(ActiveRecord::Base)
-              _cache[klass.name.underscore] = { :associations => klass.reflections.stringify_keys.keys, :columns => klass.column_names }
-            end
-          end
-
-          File.open(CACHE_FILE, 'w') { |out| YAML.dump(_cache, out ) }
-          
+          Dir.chdir TextMate.project_directory
+          %x(./bin/spring rails runner "_cache = {}; Dir.glob(Rails.root.join('app', 'models', '**/*.rb')) { |file| @error = klass = File.basename(file, '.*').camelize.constantize; _cache[klass.name.underscore] = { :associations => klass.reflections.stringify_keys.keys, :columns => klass.column_names } if klass and klass.class.is_a?(Class) and klass.ancestors.include?(ActiveRecord::Base); }; File.open(Rails.root.join('tmp', 'textmate', 'cache.yml'), 'w') { |out| out.write YAML.dump(_cache) }")
         rescue Exception => e
-          @error_message = "Fix it: #{e.message}"
+          @error = "Fix it: #{e.message}"
         end
       end
-
-      return _cache
     end
-    
+
     def current_word
       @current_word ||= Word.current_word('a-zA-Z0-9.', :left).split('.').last
     end
-    
+
     def rails_present?
       rails_version_command = "rails -v 2> /dev/null"
       return `#{rails_version_command}` =~ RAILS_REGEX || `bundle exec #{rails_version_command}` =~ RAILS_REGEX
     end
-    
+
   end
 end
 

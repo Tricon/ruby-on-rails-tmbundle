@@ -79,6 +79,6 @@ else
   if filetype == :fixture
     print "#{start_line_gap}#{ref}: #{selected_fixture}"
   else
-    print "#{start_line_gap}@#{Inflector.singularize ref} = #{ref}(#{symbolize_name selected_fixture})"
+    print "#{start_line_gap}#{Inflector.singularize ref} = #{ref}(#{symbolize_name selected_fixture})"
   end
 end
