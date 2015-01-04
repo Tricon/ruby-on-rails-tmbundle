@@ -26,7 +26,7 @@ module TextMate
         display_menu(klass_without_undescore)
       else
         options = [
-          @error || "'#{Inflector.camelize(klass)}' is not an Active Record derived class or was not recognised as a class.",
+          @error,
           nil,
           cache.keys.map { |model_name| "Use #{Inflector.camelize(model_name)}..." }.sort,
           nil,
@@ -99,14 +99,8 @@ module TextMate
     end
 
     def current_word
-      @current_word ||= Word.current_word('a-zA-Z0-9.', :left).split('.').last
+      @current_word ||= Word.current_word
     end
-
-    def rails_present?
-      rails_version_command = "rails -v 2> /dev/null"
-      return `#{rails_version_command}` =~ RAILS_REGEX || `bundle exec #{rails_version_command}` =~ RAILS_REGEX
-    end
-
   end
 end
 
